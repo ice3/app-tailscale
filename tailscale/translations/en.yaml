@@ -86,12 +86,13 @@ configuration:
       will use to present your Home Assistant instance on the tailnet and on the
       internet.
       Only ports 443, 8443, and 10000 are allowed by Tailscale.
-  share_path:
-    name: Share path
+  share_paths:
+    name: Share paths
     description: >-
-      Only this path of Home Assistant (and everything below it) is shared with
-      Tailscale Serve or Funnel, for example /api/webhook to expose webhooks only.
-      The default / shares the whole Home Assistant instance.
+      Only these paths of Home Assistant (and everything below them) are shared
+      with Tailscale Serve or Funnel, for example /api/webhook to expose webhooks
+      only. Every other URL answers 404. The default / shares the whole Home
+      Assistant instance.
       Port 443 is used by default.
   services:
     name: Service hosts

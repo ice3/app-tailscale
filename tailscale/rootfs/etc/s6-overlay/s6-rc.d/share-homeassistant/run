@@ -12,8 +12,8 @@ declare wait_counter=0
 declare curl_result
 
 declare curl_protocol
-declare share_path
-declare target_path
+declare -a share_paths
+declare target
 declare tailscale_protocol
 declare -a curl_options
 declare -a tailscale_options
@@ -52,14 +52,7 @@ curl_options+=(-w"%{http_code}")
 tailscale_options+=("$(bashio::config 'share_homeassistant')")
 tailscale_options+=(--bg=false)
 tailscale_options+=(--https="$(bashio::config 'share_on_port')")
-# Only this path (and below) is shared, e.g. /api/webhook to expose webhooks only
-share_path=$(bashio::config 'share_path')
-tailscale_options+=(--set-path="${share_path}")
-if [[ "${share_path}" == "/" ]]; then
-  target_path=""
-else
-  target_path="${share_path}"
-fi
+tailscale_options+=(--set-path=/)
 
 # Checking if SSL is used
 if bashio::var.true "$(bashio::core.ssl)"; then
@@ -74,7 +67,15 @@ else
   tailscale_protocol="http"
 fi
 curl_options+=("${curl_protocol}://127.0.0.1:$(bashio::core.port)")
-tailscale_options+=("${tailscale_protocol}://127.0.0.1:$(bashio::core.port)${target_path}")
+target="${tailscale_protocol}://127.0.0.1:$(bashio::core.port)"
+
+# When only some paths are shared, go through the NGINX path filter (see init-nginx)
+mapfile -t share_paths < <(bashio::config 'share_paths')
+if ! printf '%s\n' "${share_paths[@]}" | grep -qx '/'; then
+  bashio::log.info "Sharing only these paths of Home Assistant: ${share_paths[*]}"
+  target="http://127.0.0.1:25898"
+fi
+tailscale_options+=("${target}")
 
 # Wait a bit for HA to be available during startup
 while (( 200 != (curl_result=$(curl "${curl_options[@]}")) )); do

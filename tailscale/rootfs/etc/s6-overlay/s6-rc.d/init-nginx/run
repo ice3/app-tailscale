@@ -12,3 +12,22 @@ bashio::var.json \
     | tempio \
         -template /etc/nginx/templates/ingress.gtpl \
         -out /etc/nginx/servers/ingress.conf
+
+# Generate the path filter used by share-homeassistant when only some paths are shared
+mapfile -t share_paths < <(bashio::config 'share_paths')
+if ! bashio::config.equals 'share_homeassistant' 'disabled' && \
+  ! printf '%s\n' "${share_paths[@]}" | grep -qx '/';
+then
+  if bashio::var.true "$(bashio::core.ssl)"; then
+    upstream="https://127.0.0.1:$(bashio::core.port)"
+  else
+    upstream="http://127.0.0.1:$(bashio::core.port)"
+  fi
+  bashio::var.json \
+      port "^25898" \
+      upstream "${upstream}" \
+      paths "^$(jq -cn '$ARGS.positional' --args "${share_paths[@]}")" \
+      | tempio \
+          -template /etc/nginx/templates/share-filter.gtpl \
+          -out /etc/nginx/servers/share-filter.conf
+fi

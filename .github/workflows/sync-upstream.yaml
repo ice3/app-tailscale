@@ -1,0 +1,63 @@
+---
+# Keeps the share-path branch on top of the latest upstream release.
+# Daily: rebase onto the new release tag, bump the app version so Home
+# Assistant offers the update, and open an issue (GitHub e-mails it).
+# On a rebase conflict nothing is pushed and an issue says so.
+name: Sync upstream
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: share-path
+          fetch-depth: 0
+          # Deploy key: the GITHUB_TOKEN may not push commits touching workflows
+          ssh-key: ${{ secrets.SYNC_DEPLOY_KEY }}
+      - name: Rebase on the latest upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/hassio-addons/app-tailscale.git
+          git fetch --quiet --tags upstream
+
+          latest=$(gh api repos/hassio-addons/app-tailscale/releases/latest --jq .tag_name)
+          current=$(git describe --tags --abbrev=0 --match 'v*' HEAD)
+          if [[ "${latest}" == "${current}" ]]; then
+            echo "Already on ${current}"
+            exit 0
+          fi
+
+          release="https://github.com/hassio-addons/app-tailscale/releases/tag/${latest}"
+          if git rebase --quiet --onto "${latest}" "${current}" share-path; then
+            version="${latest#v}-share-path.1"
+            sed -i "s/^version: .*/version: ${version}/" tailscale/config.yaml
+            git commit --quiet --amend --no-edit tailscale/config.yaml
+            git push --force-with-lease origin share-path
+            gh issue create \
+              --title "Upstream ${latest} intégré (${version})" \
+              --body "La branche share-path a été rebasée de ${current} sur ${latest} sans conflit. Home Assistant va proposer la mise à jour de l'app Tailscale (share path) en ${version}. Notes de version : ${release}"
+          else
+            git rebase --abort
+            title="Conflit avec upstream ${latest}"
+            if [[ -z "$(gh issue list --state open --search "in:title \"${title}\"" --json number --jq '.[].number')" ]]; then
+              gh issue create \
+                --title "${title}" \
+                --body "Le rebase de share-path de ${current} sur ${latest} est en conflit : rien n'a été poussé, l'app reste en ${current}. À rebaser à la main. Notes de version : ${release}"
+            fi
+            exit 1
+          fi
