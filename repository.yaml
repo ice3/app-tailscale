@@ -1,0 +1,3 @@
+name: Tailscale with share path (fork of hassio-addons/app-tailscale)
+url: https://github.com/ice3/app-tailscale
+maintainer: Matthieu Falce

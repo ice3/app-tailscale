@@ -342,6 +342,18 @@ Only ports 443, 8443, and 10000 are allowed by Tailscale.
 
 Port 443 is used by default.
 
+### Option: `share_path`
+
+This option limits what Tailscale Serve and Funnel share to one path of Home
+Assistant and everything below it. For example, `/api/webhook` exposes only the
+webhooks (`https://homeassistant.tail1234.ts.net/api/webhook/<webhook_id>`);
+every other URL, including the Home Assistant frontend, answers 404.
+
+Webhook automations must have "Only accessible from the local network" turned
+off, otherwise Home Assistant rejects the calls coming through Funnel.
+
+The default `/` shares the whole Home Assistant instance.
+
 ### Option: `services`
 
 This option allows you to advertise other local services running on this device
